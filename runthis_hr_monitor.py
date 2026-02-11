@@ -8,13 +8,16 @@ import time
 import numpy as np
 from datetime import datetime
 
+# Get patient name
+patient_name = input("Enter patient name: ")
+
 sensor = MAX30102()
 ir_data = []
 red_data = []
 hr_buffer = []
 
-# Create filename with timestamp
-filename = f"hr_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+# Create filename with patient name and timestamp
+filename = f"{patient_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
 
 print("Place finger on sensor...")
 print("HR: Heart Rate | SpO2: Blood Oxygen")
@@ -23,6 +26,9 @@ print("-" * 40)
 
 # Write header to file
 with open(filename, 'w') as f:
+    f.write(f"Patient: {patient_name}\n")
+    f.write(f"Date: {datetime.now().strftime('%Y-%m-%d')}\n")
+    f.write("-" * 40 + "\n")
     f.write("Timestamp, HR (bpm), SpO2 (%)\n")
 
 last_display = 0
@@ -55,7 +61,6 @@ while True:
                     
                     if spo2_valid:
                         print(f"HR: {avg_hr:3d} bpm | SpO2: {int(spo2):3d}%")
-                        # Save to file
                         with open(filename, 'a') as f:
                             f.write(f"{timestamp}, {avg_hr}, {int(spo2)}\n")
                     else:
