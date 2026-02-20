@@ -1,35 +1,19 @@
 #!/usr/bin/env python3
 import sys
 sys.path.insert(0, '/home/pi/Desktop/max30102-master')
-
 from max30102 import MAX30102
 import hrcalc
 import time
 import numpy as np
-from datetime import datetime
-
-# Get patient name
-patient_name = input("Enter patient name: ")
 
 sensor = MAX30102()
 ir_data = []
 red_data = []
 hr_buffer = []
 
-# Create filename with patient name and timestamp
-filename = f"{patient_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-
 print("Place finger on sensor...")
 print("HR: Heart Rate | SpO2: Blood Oxygen")
-print(f"Saving data to: {filename}")
 print("-" * 40)
-
-# Write header to file
-with open(filename, 'w') as f:
-    f.write(f"Patient: {patient_name}\n")
-    f.write(f"Date: {datetime.now().strftime('%Y-%m-%d')}\n")
-    f.write("-" * 40 + "\n")
-    f.write("Timestamp, HR (bpm), SpO2 (%)\n")
 
 last_display = 0
 
@@ -43,31 +27,35 @@ while True:
             ir_data.append(ir)
             red_data.append(red)
         
-        while len(ir_data) > 100:
+        while len(ir_data) > 250:
             ir_data.pop(0)
             red_data.pop(0)
         
-        if len(ir_data) == 100:
+        # check finger is on sensor
+        if np.mean(ir_data) < 50000 or np.mean(red_data) < 50000:
+            hr_buffer.clear()
+            if time.time() - last_display >= 3.0:
+                print("No finger detected")
+                last_display = time.time()
+            continue
+
+        if len(ir_data) == 250:
             hr, hr_valid, spo2, spo2_valid = hrcalc.calc_hr_and_spo2(ir_data, red_data)
             
-            if hr_valid:
+            # only accept physiologically plausible HR
+            if hr_valid and 40 < hr < 180:
                 hr_buffer.append(hr)
-                while len(hr_buffer) > 5:
+                while len(hr_buffer) > 10:
                     hr_buffer.pop(0)
+            
+            if len(hr_buffer) >= 5 and time.time() - last_display >= 3.0:
+                avg_hr = int(np.median(hr_buffer))  # median is more robust than mean
                 
-                if time.time() - last_display >= 3.0:
-                    avg_hr = int(np.mean(hr_buffer))
-                    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    
-                    if spo2_valid:
-                        print(f"HR: {avg_hr:3d} bpm | SpO2: {int(spo2):3d}%")
-                        with open(filename, 'a') as f:
-                            f.write(f"{timestamp}, {avg_hr}, {int(spo2)}\n")
-                    else:
-                        print(f"HR: {avg_hr:3d} bpm | SpO2: --- %")
-                        with open(filename, 'a') as f:
-                            f.write(f"{timestamp}, {avg_hr}, N/A\n")
-                    
-                    last_display = time.time()
+                if spo2_valid:
+                    print(f"HR: {avg_hr:3d} bpm | SpO2: {int(spo2):3d}%")
+                else:
+                    print(f"HR: {avg_hr:3d} bpm | SpO2: --- %")
+                
+                last_display = time.time()
     
     time.sleep(0.01)
